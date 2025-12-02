@@ -1,0 +1,21 @@
+# Python va Django keraksiz fayllari
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+
+# Maxfiy fayllar (Bularni Githubga yuklash XAVFLI!)
+.env
+.env.local
+
+# Virtual muhit
+venv/
+env/
+
+# IDE sozlamalari
+.idea/
+.vscode/
+
+# Docker va Media
+postgres_data/
+media/
