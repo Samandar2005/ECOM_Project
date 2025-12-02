@@ -5,3 +5,4 @@ redis
 celery
 django-redis
 python-dotenv
+Pillow

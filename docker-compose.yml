@@ -6,6 +6,8 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
+      # QUYIDAGI QATORNI QO'SHING: Pip keshini saqlash uchun
+      - pip_cache:/root/.cache/pip
     ports:
       - "8000:8000"
     depends_on:
@@ -13,6 +15,9 @@ services:
       - redis
     env_file:
       - .env
+    # QUYIDAGI QATORNI QO'SHING: Pipga kesh papkasini ko'rsatish
+    environment:
+      - PIP_CACHE_DIR=/root/.cache/pip
 
   db:
     image: postgres:15
@@ -28,3 +33,5 @@ services:
 
 volumes:
   postgres_data:
+  # QUYIDAGI QATORNI QO'SHING: Volume yaratish
+  pip_cache:
