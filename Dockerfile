@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 3. Eng oxirida kodni ko'chiramiz (Kod o'zgarsa ham, tepasini qayta yuklamaydi)
 COPY . .
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000"]

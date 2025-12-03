@@ -6,3 +6,5 @@ celery
 django-redis
 python-dotenv
 Pillow
+gunicorn
+whitenoise
