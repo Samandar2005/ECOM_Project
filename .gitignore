@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.sqlite3
 
-# Maxfiy fayllar (Bularni Githubga yuklash XAVFLI!)
+# Secret files
 .env
 .env.local
 
