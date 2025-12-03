@@ -150,3 +150,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+CELERY_BROKER_URL = 'redis://redis:6379/0' # Vazifalar navbati (Queue) uchun 0-baza
+CELERY_RESULT_BACKEND = 'redis://redis:6379/0' # Natijalarni saqlash uchun
+CELERY_TIMEZONE = 'Asia/Tashkent'
