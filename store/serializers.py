@@ -29,3 +29,8 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'category', 'name', 'slug', 'description', 'image', 'variants', 'created_at']
+
+
+class CartItemInputSerializer(serializers.Serializer):
+    variant_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(default=1)
