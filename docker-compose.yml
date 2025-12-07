@@ -3,20 +3,17 @@ version: '3.8'
 services:
   web:
     build: .
-    # DIQQAT: Dockerfile dagi CMD ni bekor qilib, runserver ishlatamiz
+    # Entrypoint skripti tugagach, mana shu buyruq ishlaydi:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     depends_on:
       - db
       - redis
-    env_file:
-      - .env
-    # QUYIDAGI QATORNI QO'SHING: Pipga kesh papkasini ko'rsatish
-    environment:
-      - PIP_CACHE_DIR=/root/.cache/pip
 
   db:
     image: postgres:15

@@ -1,22 +1,23 @@
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework.viewsets import ReadOnlyModelViewSet
-from .models import Category, Product
-from .serializers import CategorySerializer, ProductSerializer
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .tasks import send_email_task # <-- Biz yozgan task
+from .models import Category, Product
+from .serializers import CategorySerializer, ProductSerializer
+from .tasks import send_email_task
 
 class CategoryViewSet(ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
 class ProductViewSet(ReadOnlyModelViewSet):
-    queryset = Product.objects.filter(is_active=True, in_stock=True)
+    # N+1 muammosini oldini olish uchun prefetch_related ishlatamiz
+    # Chunki mahsulot bilan birga variantlarni va atributlarni ham olib kelish kerak
+    queryset = Product.objects.prefetch_related('variants', 'variants__attributes').all()
     serializer_class = ProductSerializer
 
-    # Kesh qo'shish: method_decorator yordamida
-    # 60 * 15 = 15 daqiqa davomida ma'lumot Redisda turadi
+    # Kesh (Redis) - 15 daqiqa
     @method_decorator(cache_page(60 * 15))
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -25,16 +26,9 @@ class ProductViewSet(ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-@api_view(['POST'])
+# Celery test view (o'zgarishsiz qoladi)
+@api_view(['GET', 'POST'])
 def test_celery_view(request):
-    # Foydalanuvchidan emailni olamiz (yoki test@example.com)
-    email = request.data.get('email', 'test@example.com')
-    
-    # DIQQAT: .delay() metodi vazifani Celeryga (Redisga) uzatadi
-    # Kod shu yerda to'xtab turmaydi, darhol keyingi qatorga o'tadi!
+    email = request.data.get('email') or request.query_params.get('email', 'test@example.com')
     send_email_task.delay(email)
-    
-    return Response({
-        "message": "Email yuborish navbatga qo'yildi!",
-        "status": "Siz bu xabarni darhol oldingiz, lekin email orqa fonda ketyapti."
-    })
+    return Response({"message": "Email queuega qo'shildi!"})

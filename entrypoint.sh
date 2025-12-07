@@ -4,32 +4,37 @@
 set -e
 
 # 1. Migratsiya qilish
-echo "Migratsiya qilinmoqda..."
-python manage.py migrate
+echo "🔄 Migratsiya jarayoni boshlandi..."
+python manage.py migrate --noinput
 
-# 2. Superuser yaratish (Avtomatik tekshiruv bilan)
-echo "Superuser tekshirilmoqda..."
+# 2. Statik fayllarni yig'ish (faqat kerak bo'lsa, xatolik bermasligi uchun)
+# echo "📦 Statik fayllar yig'ilmoqda..."
+# python manage.py collectstatic --noinput
+
+# 3. Superuser yaratish (Avtomatik)
+echo "👤 Superuser tekshirilmoqda..."
 python <<KvK
 import os
 import django
 from django.contrib.auth import get_user_model
 
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 User = get_user_model()
 username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com')
-password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', '1234')
 
 if not User.objects.filter(username=username).exists():
     if password:
         User.objects.create_superuser(username=username, email=email, password=password)
-        print(f"Superuser '{username}' muvaffaqiyatli yaratildi!")
+        print(f"✅ Superuser '{username}' muvaffaqiyatli yaratildi!")
     else:
-        print("DIQQAT: Superuser paroli topilmadi, yaratilmadi.")
+        print("⚠️ DIQQAT: Superuser paroli topilmadi, yaratilmadi.")
 else:
-    print(f"Superuser '{username}' allaqachon mavjud. O'tkazib yuborildi.")
+    print(f"ℹ️ Superuser '{username}' allaqachon mavjud.")
 KvK
 
-# 3. Serverni ishga tushirish
-echo "Server ishga tushmoqda..."
-exec gunicorn core.wsgi:application --bind 0.0.0.0:8000
+# 4. Asosiy buyruqni ishga tushirish (runserver yoki gunicorn)
+echo "🚀 Server ishga tushmoqda..."
+exec "$@"
