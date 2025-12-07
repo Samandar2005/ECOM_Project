@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'store',
     'rest_framework',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -91,11 +92,14 @@ DATABASES = {
 
 # REST FRAMEWORK SOZLAMALARI
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny', # Hozircha hamma o'qiy olsin
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10, # Har bir sahifada 10 ta mahsulot
+    'PAGE_SIZE': 10,
 }
 
 # KESHLASH SOZLAMALARI (Redis)
@@ -155,3 +159,9 @@ CELERY_TIMEZONE = 'Asia/Tashkent'
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # Token 1 soat yashaydi
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),    # Refresh token 1 kun
+}

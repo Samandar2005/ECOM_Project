@@ -8,3 +8,5 @@ python-dotenv
 Pillow
 gunicorn
 whitenoise
+djangorestframework_simplejwt
+drf-yasg

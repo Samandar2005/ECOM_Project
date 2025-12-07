@@ -5,17 +5,16 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# 1. Oldin faqat requirements.txt ni ko'chiramiz
+# 1. Kutubxonalarni o'rnatish
 COPY requirements.txt .
-
-# 2. Keyin kutubxonalarni o'rnatamiz (Bu qatorda Docker keshlaydi)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# --- MANA BU QATOR TUSHIB QOLGAN, SHUNI QO'SHING ---
+COPY . .
+# ---------------------------------------------------
 
 # entrypoint.sh ni ko'chiramiz
 COPY entrypoint.sh /app/entrypoint.sh
-
-# Uni ishga tushirish huquqini beramiz (Linux uchun muhim)
 RUN chmod +x /app/entrypoint.sh
 
-# Docker yonganda shu skript ishlasin
 CMD ["/app/entrypoint.sh"]
