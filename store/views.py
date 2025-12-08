@@ -1,10 +1,11 @@
 from django.utils.decorators import method_decorator
+from django.db import transaction
 from django.views.decorators.cache import cache_page
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Category, Product, ProductVariant
-from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer
+from .models import Category, Product, OrderItem, Order, ProductVariant
+from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer, OrderInputSerializer
 from drf_yasg.utils import swagger_auto_schema # <-- Shuni import qiling
 from rest_framework.views import APIView
 from rest_framework import status
@@ -81,3 +82,88 @@ class CartAPIView(APIView):
         variant_id = request.data.get('variant_id')
         cart.remove(variant_id)
         return Response({"message": "O'chirildi", "cart": cart.get_items()})
+    
+class CheckoutAPIView(APIView):
+    """
+    Professional Checkout:
+    - Atomar tranzaksiya
+    - Row Locking (Poyga holatiga qarshi)
+    - Stock kamaytirish
+    - Asinxron Email
+    """
+    
+    @swagger_auto_schema(request_body=OrderInputSerializer)
+    def post(self, request):
+        serializer = OrderInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+            
+        cart = Cart(request)
+        cart_data = cart.get_items()
+        
+        if not cart_data['items']:
+            return Response({"error": "Savat bo'sh"}, status=400)
+            
+        data = serializer.validated_data
+        user = request.user if request.user.is_authenticated else None
+        
+        try:
+            # 1. Tranzaksiyani boshlaymiz
+            with transaction.atomic():
+                # Buyurtma "shapkasini" yaratamiz
+                order = Order.objects.create(
+                    user=user,
+                    full_name=data['full_name'],
+                    address=data['address'],
+                    phone=data['phone'],
+                    total_price=cart_data['total_price'],
+                    status='pending' # To'lov qilinmagan
+                )
+                
+                # 2. Har bir mahsulotni aylanib chiqamiz
+                for item in cart_data['items']:
+                    variant_id = item['variant_id']
+                    quantity = item['quantity']
+                    
+                    # DIQQAT: select_for_update() - bu qatorni bloklaydi!
+                    # Boshqa userlar bu variantni o'zgartira olmay turadi.
+                    variant = ProductVariant.objects.select_for_update().get(id=variant_id)
+                    
+                    # Omborni tekshirish
+                    if variant.stock < quantity:
+                        # Xatolik bo'lsa, butun tranzaksiya bekor qilinadi (Rollback)
+                        raise ValueError(f"'{variant.product.name}' omborda yetarli emas. Qoldi: {variant.stock}")
+                    
+                    # Ombordan ayiramiz
+                    variant.stock -= quantity
+                    variant.save()
+                    
+                    # OrderItem yaratamiz
+                    OrderItem.objects.create(
+                        order=order,
+                        variant=variant,
+                        quantity=quantity,
+                        price=item['price']
+                    )
+                
+                # 3. Agar hammasi o'xshasa, savatni tozalaymiz
+                cart.clear()
+                
+                # 4. Asinxron Email yuborish (Foydalanuvchini kutdirib qo'ymaslik uchun)
+                # data['email'] ga xat ketadi
+                send_email_task.delay(data['email'])
+                
+                return Response({
+                    "message": "Buyurtma qabul qilindi!",
+                    "order_id": order.id,
+                    "status": "success"
+                }, status=201)
+
+        except ProductVariant.DoesNotExist:
+            return Response({"error": "Mahsulot topilmadi"}, status=404)
+        except ValueError as e:
+            # Omborda yetishmovchilik bo'lsa
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": "Tizim xatoligi: " + str(e)}, status=500)
+        

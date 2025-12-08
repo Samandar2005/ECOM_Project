@@ -34,3 +34,16 @@ class ProductSerializer(serializers.ModelSerializer):
 class CartItemInputSerializer(serializers.Serializer):
     variant_id = serializers.IntegerField()
     quantity = serializers.IntegerField(default=1)
+
+
+class OrderInputSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=255)
+    address = serializers.CharField(max_length=500)
+    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField() # Emailni ham so'raymiz (mehmonlar uchun)
+
+    def validate_phone(self, value):
+        # Oddiy tekshiruv: Raqam juda qisqa bo'lmasligi kerak
+        if len(value) < 7:
+            raise serializers.ValidationError("Telefon raqam noto'g'ri")
+        return value
