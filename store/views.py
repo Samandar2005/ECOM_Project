@@ -1,11 +1,13 @@
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from django.views.decorators.cache import cache_page
-from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from .models import Category, Product, OrderItem, Order, ProductVariant
-from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer, OrderInputSerializer
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from .models import Category, Product, OrderItem, Order, ProductVariant, Review
+from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer, OrderInputSerializer, ReviewSerializer
 from drf_yasg.utils import swagger_auto_schema # <-- Shuni import qiling
 from rest_framework.views import APIView
 from rest_framework import status
@@ -166,4 +168,20 @@ class CheckoutAPIView(APIView):
             return Response({"error": str(e)}, status=400)
         except Exception as e:
             return Response({"error": "Tizim xatoligi: " + str(e)}, status=500)
+        
+class ReviewViewSet(ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly] # O'qish tekin, yozish pullik (login bilan)
+
+    def perform_create(self, serializer):
+        # Userni requestdan olib, avtomatik biriktiramiz
+        user = self.request.user
+        product = serializer.validated_data['product']
+        
+        # Tekshiramiz: Bu user avval bu mahsulotga izoh yozganmi?
+        if Review.objects.filter(user=user, product=product).exists():
+            raise ValidationError("Siz bu mahsulotga avval izoh qoldirgansiz!")
+            
+        serializer.save(user=user)
         

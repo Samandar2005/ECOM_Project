@@ -19,22 +19,25 @@ schema_view = get_schema_view(
    openapi.Info(
       title="E-Commerce API",
       default_version='v1',
-      description="Katta E-Commerce loyihasi uchun API hujjatlari",
+      description="E-Commerce API",
       contact=openapi.Contact(email="admin@example.com"),
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
+   # SHU YERNI QO'SHING:
+   authentication_classes=[],
 )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('store.urls')),
     
-    # AUTHENTICATION (JWT)
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'), # Login
+    # ... token pathlar ...
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # DOCUMENTATION (Swagger)
+    # ... swagger pathlar ...
+    path('swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]

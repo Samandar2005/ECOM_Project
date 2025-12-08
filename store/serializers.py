@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, ProductVariant, AttributeValue
+from .models import Category, Product, ProductVariant, AttributeValue, Review
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,3 +47,12 @@ class OrderInputSerializer(serializers.Serializer):
         if len(value) < 7:
             raise serializers.ValidationError("Telefon raqam noto'g'ri")
         return value
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'username', 'product', 'rating', 'comment', 'created_at']
+        read_only_fields = ['user'] # Userni avtomatik olamiz
