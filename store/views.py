@@ -1,3 +1,4 @@
+import stripe
 from django.db import transaction
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.exceptions import ValidationError
@@ -6,7 +7,9 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Category, Product, OrderItem, Order, ProductVariant, Review
-from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer, OrderInputSerializer, ReviewSerializer
+from .serializers import (CategorySerializer, ProductSerializer, 
+                          CartItemInputSerializer, OrderInputSerializer, ReviewSerializer,
+                          CreateCheckoutSessionSerializer, OrderSerializer)
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view
 from django.views.decorators.cache import cache_page
@@ -16,11 +19,46 @@ from rest_framework.views import APIView
 from rest_framework import status
 from .cart import Cart
 from .tasks import send_email_task
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class CategoryViewSet(ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+class OrderViewSet(ModelViewSet):
+    """
+    Buyurtmalarni boshqarish:
+    - Userlar faqat o'z buyurtmalarini ko'radi.
+    - Adminlar hammasini ko'radi va statusini o'zgartira oladi.
+    """
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    
+    # 1. Filtrlash va Qidiruv (Adminlar uchun qulaylik)
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status']
+    search_fields = ['full_name', 'phone', 'id']
+    ordering_fields = ['created_at', 'total_price']
+
+    def get_queryset(self):
+        user = self.request.user
+        # Agar Admin bo'lsa - hamma buyurtmalarni ko'rsin
+        if user.is_staff:
+            return Order.objects.prefetch_related('items__variant__product').all()
+        # Oddiy user faqat o'zining buyurtmalarini ko'rsin
+        return Order.objects.prefetch_related('items__variant__product').filter(user=user)
+
+    # Statusni o'zgartirish (faqat qisman update uchun)
+    def partial_update(self, request, *args, **kwargs):
+        # Agar oddiy user statusni o'zgartirmoqchi bo'lsa, ruxsat bermaslik yoki faqat "cancelled" ga ruxsat berish mumkin
+        if not request.user.is_staff:
+             return Response({"error": "Siz buyurtmani o'zgartira olmaysiz. Admin bilan bog'laning."}, status=403)
+        return super().partial_update(request, *args, **kwargs)
 
 class ProductViewSet(ReadOnlyModelViewSet):
     # Duplikatlarni oldini olish uchun distinct() muhim, 
@@ -201,4 +239,93 @@ class ReviewViewSet(ModelViewSet):
             raise ValidationError("Siz bu mahsulotga avval izoh qoldirgansiz!")
             
         serializer.save(user=user)
+
+
+class CreateCheckoutSessionView(APIView):
+    """
+    Stripe to'lov havolasini yaratish
+    """
+    
+    # Swaggerga aytamiz: Bu API 'order_id' kutadi
+    @swagger_auto_schema(request_body=CreateCheckoutSessionSerializer)
+    def post(self, request, *args, **kwargs):
+        # Kelgan ma'lumotni tekshiramiz
+        serializer = CreateCheckoutSessionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+            
+        order_id = serializer.validated_data['order_id']
         
+        try:
+            order = Order.objects.get(id=order_id)
+            
+            if order.status == 'paid':
+                return Response({"error": "Bu buyurtma allaqachon to'langan"}, status=400)
+
+            # Stripe sessiyasini yaratish
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[
+                    {
+                        'price_data': {
+                            'currency': 'usd',
+                            'unit_amount': int(order.total_price * 100),
+                            'product_data': {
+                                'name': f"Order #{order.id} - {order.full_name}",
+                            },
+                        },
+                        'quantity': 1,
+                    },
+                ],
+                mode='payment',
+                success_url='http://127.0.0.1:8000/api/payment-success/',
+                cancel_url='http://127.0.0.1:8000/api/payment-cancel/',
+                metadata={
+                    "order_id": order.id
+                }
+            )
+            
+            return Response({
+                "checkout_url": checkout_session.url
+            })
+            
+        except Order.DoesNotExist:
+            return Response({"error": "Buyurtma topilmadi. ID to'g'riligini tekshiring."}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+        
+
+@csrf_exempt # CSRF token talab qilinmaydi, chunki buni Stripe yuboradi
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+    event = None
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        return HttpResponse(status=400) # Invalid payload
+    except stripe.error.SignatureVerificationError as e:
+        return HttpResponse(status=400) # Invalid signature
+
+    # To'lov muvaffaqiyatli bo'ldi!
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        
+        # Metadatadan order_id ni olamiz
+        order_id = session['metadata']['order_id']
+        
+        # Orderni topib, statusini o'zgartiramiz
+        try:
+            order = Order.objects.get(id=order_id)
+            order.status = 'paid'
+            order.save()
+            print(f"✅ ORDER #{order.id} TO'LANDI!")
+        except Order.DoesNotExist:
+            print("❌ Order topilmadi")
+
+    return HttpResponse(status=200)
+
+

@@ -11,3 +11,4 @@ whitenoise
 djangorestframework_simplejwt
 drf-yasg
 django-filter
+stripe

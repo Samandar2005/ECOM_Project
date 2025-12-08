@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Category, Product, ProductVariant, AttributeValue, Review
+from .models import (Category, Product, ProductVariant, AttributeValue, Review, 
+                     Order, OrderItem)
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,6 +13,8 @@ class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
         fields = ['id', 'attribute_name', 'value']
+class CreateCheckoutSessionSerializer(serializers.Serializer):
+    order_id = serializers.IntegerField(help_text="To'lanishi kerak bo'lgan buyurtma ID raqami")
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     # Variantning xususiyatlarini (Color: Red) chiqarish uchun
@@ -56,3 +59,24 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ['id', 'user', 'username', 'product', 'rating', 'comment', 'created_at']
         read_only_fields = ['user'] # Userni avtomatik olamiz
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='variant.product.name', read_only=True)
+    sku = serializers.CharField(source='variant.sku', read_only=True)
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product_name', 'sku', 'quantity', 'price']
+
+# 2. Asosiy Buyurtma uchun
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ['id', 'user', 'full_name', 'address', 'phone', 'total_price', 'status', 'items', 'created_at']
+        read_only_fields = ['user', 'total_price', 'items', 'created_at'] 
+        # Narx va mahsulotlarni bu yerdan o'zgartirib bo'lmaydi (xavfsizlik uchun)
+
