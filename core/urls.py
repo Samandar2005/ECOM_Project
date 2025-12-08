@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-
 # Swagger uchun
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
@@ -19,13 +18,11 @@ schema_view = get_schema_view(
    openapi.Info(
       title="E-Commerce API",
       default_version='v1',
-      description="E-Commerce API",
+      description="API hujjatlari",
       contact=openapi.Contact(email="admin@example.com"),
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
-   # SHU YERNI QO'SHING:
-   authentication_classes=[],
 )
 
 urlpatterns = [
