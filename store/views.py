@@ -1,38 +1,55 @@
-from django.utils.decorators import method_decorator
 from django.db import transaction
-from django.views.decorators.cache import cache_page
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
-from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Category, Product, OrderItem, Order, ProductVariant, Review
 from .serializers import CategorySerializer, ProductSerializer, CartItemInputSerializer, OrderInputSerializer, ReviewSerializer
-from drf_yasg.utils import swagger_auto_schema # <-- Shuni import qiling
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework.decorators import api_view
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
+from .filters import ProductFilter
 from rest_framework.views import APIView
 from rest_framework import status
 from .cart import Cart
 from .tasks import send_email_task
+
 
 class CategoryViewSet(ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
 class ProductViewSet(ReadOnlyModelViewSet):
-    # N+1 muammosini oldini olish uchun prefetch_related ishlatamiz
-    # Chunki mahsulot bilan birga variantlarni va atributlarni ham olib kelish kerak
-    queryset = Product.objects.prefetch_related('variants', 'variants__attributes').all()
+    # Duplikatlarni oldini olish uchun distinct() muhim, 
+    # chunki bitta mahsulotning 2 xil varianti narxga to'g'ri kelsa, mahsulot 2 marta chiqib qolishi mumkin.
+    queryset = Product.objects.prefetch_related('variants', 'variants__attributes').distinct()
     serializer_class = ProductSerializer
+    
+    # --- YANGI QISMLAR ---
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    
+    # 1. Biz yozgan maxsus filtr klassi
+    filterset_class = ProductFilter
+    
+    # 2. Qidiruv qaysi maydonlarda ishlashi kerak?
+    # 'variants__sku' orqali SKU kodini yozsa ham topadi!
+    search_fields = ['name', 'description', 'variants__sku']
+    
+    # 3. Nima bo'yicha saralash mumkin?
+    ordering_fields = ['created_at', 'name']
+    ordering = ['-created_at'] # Default: Yangilari tepada
 
-    # Kesh (Redis) - 15 daqiqa
+    # Kesh (Redis) qoladi
     @method_decorator(cache_page(60 * 15))
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
-
+    
     @method_decorator(cache_page(60 * 15))
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
-
 # Celery test view (o'zgarishsiz qoladi)
 @api_view(['GET', 'POST'])
 def test_celery_view(request):

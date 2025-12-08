@@ -30,17 +30,16 @@ services:
   # Yangi Celery ishchisi
   celery:
     build: .
-    command: celery -A core worker --loglevel=info
+    entrypoint: sh -c "celery -A core worker --loglevel=info"
     volumes:
       - .:/app
     environment:
-      - DEBUG=1
-      - SECRET_KEY=django-insecure-change-me-later
-      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - DEBUG=True
+    env_file:
+      - .env
     depends_on:
-      - redis
       - db
-      - web  
+      - redis 
 
 volumes:
   postgres_data:
