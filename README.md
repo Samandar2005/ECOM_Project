@@ -1,4 +1,9 @@
 
+
+## Overview in English
+
+A Django REST Framework marketplace backend with PostgreSQL, Redis carts and caching, Celery, and Docker.
+
 # Enterprise E-Commerce API (Yuqori Yuklamali Tizim)
 
 Ushbu loyiha Django REST Framework, Docker, Redis, Celery va PostgreSQL texnologiyalari asosida qurilgan zamonaviy onlayn do'kon (Marketpleys) backend tizimidir.
